@@ -1,0 +1,16 @@
+flask
+flask_sqlalchemy
+flask_bcrypt
+flask_cors
+flask_migrate
+python-dotenv
+gunicorn
+psycopg2-binary
+redis
+celery
+google-cloud-storage
+spacy
+https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl
+pytesseract
+Pillow
+pdf2image
