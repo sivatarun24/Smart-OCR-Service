@@ -1,0 +1,87 @@
+services:
+  backend:
+    build: ./server
+    container_name: backend
+    ports:
+      - "8080:8080"
+    env_file:
+      - ./server/.env
+    volumes:
+      - ./secrets/gcp-sa.json:/secrets/gcp-sa.json:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # volumes:
+    #   - .:/app
+
+  frontend:
+    build: ./client
+    container_name: frontend
+    ports:
+      - "5173:80"
+    environment:
+      VITE_API_BASE: http://localhost:8080
+    depends_on:
+      - backend
+
+  db:
+    image: postgres:16-alpine
+    container_name: postgres-db
+    environment:
+      POSTGRES_USER: ocr
+      POSTGRES_PASSWORD: ocr
+      POSTGRES_DB: ocr
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ocr"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    container_name: redis
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+
+  worker:
+    container_name: celery-worker
+    build: ./server
+    command:
+      [
+        "celery",
+        "-A",
+        "tasks.celery_app",
+        "worker",
+        "--loglevel=INFO",
+        "--concurrency=1",
+        "-Q",
+        "ocr",
+      ]
+    env_file: ./server/.env
+    # environment:
+    #   REDIS_URL: ${REDIS_URL}
+    #   GCS_BUCKET: ${GCS_BUCKET}
+    #   GCP_PROJECT_ID: ${GCP_PROJECT_ID}
+    #   GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS}
+    #   DB_URL: ${DB_URL}
+    volumes:
+      - ./secrets/gcp-sa.json:/secrets/gcp-sa.json:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  pgdata:
