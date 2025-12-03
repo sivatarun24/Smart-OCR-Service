@@ -40,7 +40,7 @@ export default function App() {
     const interval = setInterval(async () => {
       const updated = await Promise.all(jobs.map(async j => {
         if (['COMPLETED','FAILED'].includes(j.status)) return j
-        const s = await getStatus(j.id).catch(() => null)
+        const s = await getStatus(j.job_id).catch(() => null)
         return s ? {...j, ...s} : j
       }))
       setJobs(updated)
@@ -53,9 +53,9 @@ export default function App() {
     setResults(items)
   }
 
-  const handleDownload = async (id) => {
+  const handleDownload = async (job_id) => {
     try {
-      const url = await getDownloadUrl(id)
+      const url = await getDownloadUrl(job_id)
       window.location.href = url
     } catch {
       alert('Download not available yet.')
@@ -109,7 +109,7 @@ export default function App() {
 
       <section className="jobs">
         {jobs.length === 0 && <p className="empty">No jobs yet. Upload a file to begin.</p>}
-        {jobs.map(job => <JobCard key={job.id} job={job} />)}
+        {jobs.map(job => <JobCard key={job.job_id} job={job} />)}
       </section>
     </div>
   )

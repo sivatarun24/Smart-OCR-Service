@@ -86,3 +86,18 @@ class Job(db.Model):
 
     # optional relationship to Document if needed later
     document_id = db.Column(db.Integer, db.ForeignKey("documents.id"), nullable=True)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "job_id": self.job_id,
+            "filename": self.filename,
+            "mime": self.mime,
+            "gcs_uri": self.gcs_uri,
+            "status": self.status,
+            "progress": self.progress,
+            "stage": self.stage,
+            "document_id": self.document_id,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+        }

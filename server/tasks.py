@@ -12,7 +12,8 @@ from celery import Celery
 from storage import download_to_path
 from status_store import StatusStore
 from app import db, create_app
-from app.models import Document
+from app.models import Document, Job
+from datetime import datetime
 
 # -----------------------------------------------------------------------------
 # Logging Setup
@@ -132,19 +133,135 @@ def extract_tags(text: str, entities: list[dict], k: int = 15) -> list[str]:
 # -----------------------------------------------------------------------------
 # Celery Task: process_document
 # -----------------------------------------------------------------------------
+# @celery_app.task(queue="ocr")
+# def process_document(job_id: str, gcs_uri: str, filename: str):
+#     """Performs OCR + NER + Tag extraction + DB persistence."""
+#     logger.info("Started processing document job_id=%s, file=%s", job_id, filename)
+
+#     app = create_app()
+#     with app.app_context():
+#         try:
+#             STATUS.update(job_id, status="OCR_IN_PROGRESS",
+#                           progress=60, stage="Downloading & OCR")
+#             logger.info("[Job %s] Downloading from GCS: %s", job_id, gcs_uri)
+
+#             # ---- 1. Download and OCR ----
+#             with tempfile.TemporaryDirectory() as td:
+#                 local_path = os.path.join(td, filename)
+#                 download_to_path(gcs_uri, local_path)
+#                 logger.info("[Job %s] File downloaded to %s", job_id, local_path)
+
+#                 ftype = simple_detect_type(local_path)
+#                 logger.info("[Job %s] Detected file type: %s", job_id, ftype)
+
+#                 if ftype == "pdf":
+#                     text = extract_text_from_pdf(local_path)
+#                 elif ftype == "image":
+#                     text = extract_text_from_image(local_path)
+#                 else:
+#                     logger.warning("[Job %s] Unsupported file type: %s", job_id, ftype)
+#                     text = ""
+
+#             # ---- 2. NLP (NER + Tagging) ----
+#             STATUS.update(job_id, status="NLP_IN_PROGRESS",
+#                           progress=80, stage="Extracting entities & tags")
+#             logger.info("[Job %s] Performing NLP entity extraction...", job_id)
+#             doc = NLP(text)
+#             entities = [
+#                 {"text": ent.text, "label": ent.label_,
+#                     "start": ent.start_char, "end": ent.end_char}
+#                 for ent in doc.ents
+#             ]
+#             logger.info("[Job %s] Extracted %d entities.", job_id, len(entities))
+
+#             tags = extract_tags(text, entities)
+#             logger.info("[Job %s] Extracted %d tags.", job_id, len(tags))
+
+#             # ---- 3. Persist to DB ----
+#             logger.info("[Job %s] Saving results to database...", job_id)
+#             doc = db.session.query(Document).filter_by(job_id=job_id).first()
+#             if doc:
+#                 doc.status = "COMPLETED"
+#                 doc.text = text[:100000]
+#                 doc.entities_json = json.dumps(entities)
+#                 doc.tags_json = json.dumps(tags)
+
+#                 db.session.add(doc)
+#                 db.session.commit()
+#                 logger.info("[Job %s] Document record updated successfully.", job_id)
+#             else:
+#                 logger.warning("[Job %s] Document not found in DB.", job_id)
+
+#             # ---- 4. Update Status ----
+#             STATUS.update(
+#                 job_id,
+#                 status="COMPLETED",
+#                 progress=100,
+#                 stage="Done",
+#                 text=text[:20000],
+#                 entities=json.dumps(entities),
+#             )
+#             logger.info("[Job %s] Job completed successfully.", job_id)
+#             return True
+
+#         except Exception as e:
+#             logger.exception("[Job %s] Failed: %s", job_id, e)
+#             STATUS.update(job_id, status="FAILED", stage=f"Error: {e}")
+
+#             # Reflect failure in DB as well
+#             doc = db.session.query(Document).filter_by(job_id=job_id).first()
+#             if doc:
+#                 doc.status = "FAILED"
+
+#                 db.session.add(doc)
+#                 db.session.commit()
+#             logger.error("[Job %s] DB updated with FAILED status.", job_id)
+
+#             raise
+
 @celery_app.task(queue="ocr")
 def process_document(job_id: str, gcs_uri: str, filename: str):
-    """Performs OCR + NER + Tag extraction + DB persistence."""
+    """Performs OCR + NLP + DB persistence."""
     logger.info("Started processing document job_id=%s, file=%s", job_id, filename)
 
     app = create_app()
     with app.app_context():
         try:
-            STATUS.update(job_id, status="OCR_IN_PROGRESS",
-                          progress=60, stage="Downloading & OCR")
+            # -----------------------------------------------------
+            # 0. Load DB rows
+            # -----------------------------------------------------
+            doc_row = db.session.query(Document).filter_by(job_id=job_id).first()
+            job_row = db.session.query(Job).filter_by(job_id=job_id).first()
+
+            # Helper to safely update DB job/document
+            def update_job(status=None, stage=None, progress=None):
+                if job_row:
+                    if status: job_row.status = status
+                    if stage: job_row.stage = stage
+                    if progress is not None: job_row.progress = progress
+                    job_row.updated_at = datetime.utcnow()
+
+                if doc_row:
+                    if status: doc_row.status = status
+                    doc_row.updated_at = datetime.utcnow()
+
+                db.session.commit()
+
+            # -----------------------------------------------------
+            # 1. OCR STARTED
+            # -----------------------------------------------------
+            STATUS.update(job_id,
+                          status="OCR_IN_PROGRESS",
+                          progress=60,
+                          stage="Downloading & OCR")
+
+            update_job(status="OCR_IN_PROGRESS",
+                       stage="Downloading & OCR",
+                       progress=60)
+
             logger.info("[Job %s] Downloading from GCS: %s", job_id, gcs_uri)
 
-            # ---- 1. Download and OCR ----
+            # ---- Create temp dir & download ----
             with tempfile.TemporaryDirectory() as td:
                 local_path = os.path.join(td, filename)
                 download_to_path(gcs_uri, local_path)
@@ -154,66 +271,80 @@ def process_document(job_id: str, gcs_uri: str, filename: str):
                 logger.info("[Job %s] Detected file type: %s", job_id, ftype)
 
                 if ftype == "pdf":
-                    text = extract_text_from_pdf(local_path)
+                    extracted_text = extract_text_from_pdf(local_path)
                 elif ftype == "image":
-                    text = extract_text_from_image(local_path)
+                    extracted_text = extract_text_from_image(local_path)
                 else:
                     logger.warning("[Job %s] Unsupported file type: %s", job_id, ftype)
-                    text = ""
+                    extracted_text = ""
 
-            # ---- 2. NLP (NER + Tagging) ----
-            STATUS.update(job_id, status="NLP_IN_PROGRESS",
-                          progress=80, stage="Extracting entities & tags")
+            # -----------------------------------------------------
+            # 2. NLP STARTED
+            # -----------------------------------------------------
+            STATUS.update(job_id,
+                          status="NLP_IN_PROGRESS",
+                          progress=80,
+                          stage="Extracting entities & tags")
+
+            update_job(status="NLP_IN_PROGRESS",
+                       stage="Extracting entities & tags",
+                       progress=80)
+
             logger.info("[Job %s] Performing NLP entity extraction...", job_id)
-            doc = NLP(text)
+
+            nlp_doc = NLP(extracted_text)      # rename to avoid conflict with Document model
+
             entities = [
                 {"text": ent.text, "label": ent.label_,
-                    "start": ent.start_char, "end": ent.end_char}
-                for ent in doc.ents
+                 "start": ent.start_char, "end": ent.end_char}
+                for ent in nlp_doc.ents
             ]
-            logger.info("[Job %s] Extracted %d entities.", job_id, len(entities))
 
-            tags = extract_tags(text, entities)
-            logger.info("[Job %s] Extracted %d tags.", job_id, len(tags))
+            tags = extract_tags(extracted_text, entities)
 
-            # ---- 3. Persist to DB ----
+            # -----------------------------------------------------
+            # 3. Persist to DB
+            # -----------------------------------------------------
             logger.info("[Job %s] Saving results to database...", job_id)
-            doc = db.session.query(Document).filter_by(job_id=job_id).first()
-            if doc:
-                doc.status = "COMPLETED"
-                doc.text = text[:100000]
-                doc.entities_json = json.dumps(entities)
-                doc.tags_json = json.dumps(tags)
 
-                db.session.add(doc)
-                db.session.commit()
-                logger.info("[Job %s] Document record updated successfully.", job_id)
+            if doc_row:
+                doc_row.status = "COMPLETED"
+                doc_row.text = extracted_text[:100000]
+                doc_row.entities_json = json.dumps(entities)
+                doc_row.tags_json = json.dumps(tags)
             else:
-                logger.warning("[Job %s] Document not found in DB.", job_id)
+                logger.warning("[Job %s] Document row missing!", job_id)
 
-            # ---- 4. Update Status ----
+            update_job(status="COMPLETED",
+                       stage="Done",
+                       progress=100)
+
+            # -----------------------------------------------------
+            # 4. Update STATUS store
+            # -----------------------------------------------------
             STATUS.update(
                 job_id,
                 status="COMPLETED",
                 progress=100,
                 stage="Done",
-                text=text[:20000],
-                entities=json.dumps(entities),
+                text=extracted_text[:20000],
+                entities=json.dumps(entities)
             )
+
             logger.info("[Job %s] Job completed successfully.", job_id)
             return True
 
         except Exception as e:
             logger.exception("[Job %s] Failed: %s", job_id, e)
+
+            # ---- Update DB on FAIL ----
+            if doc_row:
+                doc_row.status = "FAILED"
+
+            update_job(status="FAILED",
+                       stage=f"Error: {e}",
+                       progress=0)
+
             STATUS.update(job_id, status="FAILED", stage=f"Error: {e}")
-
-            # Reflect failure in DB as well
-            doc = db.session.query(Document).filter_by(job_id=job_id).first()
-            if doc:
-                doc.status = "FAILED"
-
-                db.session.add(doc)
-                db.session.commit()
-            logger.error("[Job %s] DB updated with FAILED status.", job_id)
 
             raise

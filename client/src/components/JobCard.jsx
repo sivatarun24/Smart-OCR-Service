@@ -10,17 +10,26 @@ export default function JobCard({ job }) {
   const [open, setOpen] = useState(false)
   const [result, setResult] = useState(null)
   const [err, setErr] = useState('')
+  const [showText, setShowText] = useState(true)
+  const [showEntities, setShowEntities] = useState(false)
+  const [showTags, setShowTags] = useState(false)
 
   const fetchResult = async () => {
     setErr('')
     try {
-      const r = await getResult(job.id)
+      const r = await getResult(job.job_id)
       setResult(r)
       setOpen(true)
     } catch (e) {
       setErr(e?.response?.data?.error || 'Not ready')
     }
   }
+
+  const Arrow = ({ open }) => (
+    <span style={{ cursor: 'pointer', marginRight: 6 }}>
+      {open ? '▼' : '▶'}
+    </span>
+  )
 
   return (
     <div className="card">
@@ -37,10 +46,24 @@ export default function JobCard({ job }) {
       {err && <p className="error">{err}</p>}
       {open && result && (
         <div className="result">
-          <h4>Extracted Text</h4>
-          <pre className="code">{result.text}</pre>
-          <h4>Entities (NER)</h4>
-          <pre className="code">{pretty(result.entities)}</pre>
+          <div>
+            <h4 style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => setShowText(v => !v)}>
+              <Arrow open={showText} /> Extracted Text
+            </h4>
+            {showText && <pre className="code">{result.text}</pre>}
+          </div>
+          <div>
+            <h4 style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => setShowEntities(v => !v)}>
+              <Arrow open={showEntities} /> Entities (NER)
+            </h4>
+            {showEntities && <pre className="code">{pretty(result.entities)}</pre>}
+          </div>
+          <div>
+            <h4 style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => setShowTags(v => !v)}>
+              <Arrow open={showTags} /> Tags
+            </h4>
+            {showTags && <pre className="code">{pretty(result.tags)}</pre>}
+          </div>
         </div>
       )}
     </div>

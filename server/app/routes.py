@@ -1,3 +1,4 @@
+import json
 from flask import Blueprint, request, jsonify
 import logging
 from sqlalchemy import text
@@ -28,12 +29,18 @@ STATUS = StatusStore()
 # def load_user(user_id):
 #     return User.query.get(int(user_id))
 
-# write a silple /api/health to get the status
+
+# ------------------------------
+# Health Check
+# ------------------------------
 @api_bp.route('/health', methods=['GET'])
 def health():
     return jsonify({'status': 'ok'})
 
-# write a simple /api/dbhealth to check database connection
+
+# ------------------------------
+# DB Health Check
+# ------------------------------
 @api_bp.route('/dbhealth', methods=['GET'])
 def db_health():
     try:
@@ -43,6 +50,10 @@ def db_health():
     except Exception as e:
         return jsonify({'db_status': 'disconnected', 'error': str(e)}), 500
 
+
+# ------------------------------
+# Register
+# ------------------------------
 @api_bp.route('/register', methods=['POST'])
 def register():
     data = request.get_json()
@@ -68,7 +79,10 @@ def register():
     # db.session.expunge(user)  # detach from session
     return jsonify(user.to_dict()), 201
 
-# add code for the login route
+
+# ------------------------------
+# Login
+# ------------------------------
 @api_bp.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
@@ -85,17 +99,18 @@ def login():
 
     if not user or not bcrypt.check_password_hash(user.password_hash, password):
         return jsonify({'error': 'Invalid username or password.'}), 401
-    
-    # Optional: log the user in for session management
+
     login_user(user)
-    
     # Return user info without password_hash
     user_data = user.to_dict()
     user_data.pop('password_hash', None)  # remove sensitive info
     
     return jsonify({'message': 'Login successful', 'user': user_data}), 200
 
-# create a simple /api/upload
+
+# ------------------------------
+# File Upload
+# ------------------------------
 @api_bp.route('/upload', methods=['POST'])
 # @login_required
 def upload():
@@ -186,3 +201,105 @@ def upload():
         logger.exception("Error during /upload processing.")
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
+    
+
+# ------------------------------
+# Status Check
+# ------------------------------
+@api_bp.route("/status/<job_id>", methods=["GET"])
+def status(job_id):
+    logger.info(f"Fetching status for job_id: {job_id}")
+    job = Job.query.filter_by(job_id=job_id).first()
+    if not job:
+        logger.warning(f"Job ID not found: {job_id}")
+        return jsonify({"error": f"Job ID '{job_id}' not found"}), 404
+    return jsonify(job.to_dict())
+
+
+# ------------------------------
+# OCR Result Retrieval
+# ------------------------------
+@api_bp.route("/result/<job_id>", methods=["GET"])
+def result(job_id):
+    logger.info(f"Fetching result for job_id: {job_id}")
+    job = Job.query.filter_by(job_id=job_id).first()
+    if not job:
+        return jsonify({"error": "not found"}), 404
+    if job.status != "COMPLETED":
+        logger.info(
+            f"Job not completed yet: {job_id}, current status: {job.status}")
+        return jsonify({"error": "not ready", "status": job.status}), 409
+    doc = Document.query.filter_by(job_id=job_id).first()
+    return jsonify({
+        "text": doc.text or "",
+        "entities": doc.entities_json or "",
+        "tags": doc.tags_json or "",
+    })
+
+
+# ------------------------------
+# Document Metadata Retrieval
+# ------------------------------
+@api_bp.route("/doc/<job_id>", methods=["GET"])
+def get_doc(job_id):
+    logger.info(f"Fetching document details for job_id: {job_id}")
+    d = db.session.query(Document).filter_by(job_id=job_id).first()
+    if not d:
+        logger.warning(f"Document not found: {job_id}")
+        return jsonify({"error": "not found"}), 404
+    return jsonify({
+        "id": d.id,
+        "filename": d.filename,
+        "mime": d.mime,
+        "gcs_uri": d.gcs_uri,
+        "status": d.status,
+        "tags": json.loads(d.tags_json or "[]"),
+    })
+
+
+# ------------------------------
+# Generate Download Link
+# ------------------------------
+@api_bp.route("/download/<job_id>", methods=["GET"])
+def download_link(job_id):
+    logger.info(f"Generating signed URL for job_id: {job_id}")
+    d = db.session.query(Document).filter_by(job_id=job_id).first()
+    if not d:
+        logger.warning(f"Document not found for download: {job_id}")
+        return jsonify({"error": "not found"}), 404
+    if not d.gcs_uri:
+        logger.warning(f"No GCS URI found for document: {job_id}")
+        return jsonify({"error": "no file"}), 400
+    url = generate_signed_url(d.gcs_uri, minutes=30)
+    logger.info(f"Generated signed URL for {job_id}")
+    return jsonify({"url": url})
+
+
+# ------------------------------
+# Search Documents
+# ------------------------------
+@api_bp.route("/search", methods=["GET"])
+def search():
+    q = request.args.get("q", "").strip().lower()
+    logger.info(f"Search request received for query: '{q}'")
+    if not q:
+        return jsonify({"results": []})
+
+    results = []
+    docs = db.session.query(Document).all()
+    for d in docs:
+        hay = " ".join([
+            d.filename or "",
+            (d.text or "")[:5000].lower(),
+            " ".join(json.loads(d.tags_json or "[]")).lower(),
+            (d.entities_json or "").lower(),
+        ])
+        if q in hay:
+            results.append({
+                "id": d.id,
+                "filename": d.filename,
+                "status": d.status,
+                "tags": json.loads(d.tags_json or "[]"),
+            })
+    logger.info(f"Search completed. {len(results)} results found.")
+    return jsonify({"results": results})

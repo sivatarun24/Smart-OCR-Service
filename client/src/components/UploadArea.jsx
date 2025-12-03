@@ -13,8 +13,9 @@ export default function UploadArea({ onNewJob }) {
     setBusy(true)
     try {
       const { job_id } = await uploadFile(file)
+      console.log(`Uploaded file ${file.name} with job ID: ${job_id}`) // Debug log
       const s = await getStatus(job_id)
-      onNewJob({ id: job_id, filename: file.name, ...s })
+      onNewJob({ job_id: job_id, filename: file.name, ...s })
     } catch (err) {
       setError(err?.response?.data?.error || 'Upload failed')
     } finally {
