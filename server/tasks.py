@@ -178,13 +178,14 @@ def process_document(job_id: str, gcs_uri: str, filename: str):
 
             # ---- 3. Persist to DB ----
             logger.info("[Job %s] Saving results to database...", job_id)
-            d = db.session.query(Document).filter_by(job_id=job_id).first()
-            if d:
-                d.status = "COMPLETED"
-                d.text = text[:100000]
-                d.entities_json = json.dumps(entities)
-                d.tags_json = json.dumps(tags)
-                db.session.add(d)
+            doc = db.session.query(Document).filter_by(job_id=job_id).first()
+            if doc:
+                doc.status = "COMPLETED"
+                doc.text = text[:100000]
+                doc.entities_json = json.dumps(entities)
+                doc.tags_json = json.dumps(tags)
+
+                db.session.add(doc)
                 db.session.commit()
                 logger.info("[Job %s] Document record updated successfully.", job_id)
             else:
@@ -200,16 +201,18 @@ def process_document(job_id: str, gcs_uri: str, filename: str):
                 entities=json.dumps(entities),
             )
             logger.info("[Job %s] Job completed successfully.", job_id)
+            return True
 
         except Exception as e:
             logger.exception("[Job %s] Failed: %s", job_id, e)
             STATUS.update(job_id, status="FAILED", stage=f"Error: {e}")
 
             # Reflect failure in DB as well
-            d = db.session.query(Document).filter_by(job_id=job_id).first()
-            if d:
-                d.status = "FAILED"
-                db.session.add(d)
+            doc = db.session.query(Document).filter_by(job_id=job_id).first()
+            if doc:
+                doc.status = "FAILED"
+
+                db.session.add(doc)
                 db.session.commit()
             logger.error("[Job %s] DB updated with FAILED status.", job_id)
 

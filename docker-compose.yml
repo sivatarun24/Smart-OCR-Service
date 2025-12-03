@@ -53,6 +53,8 @@ services:
       interval: 2s
       timeout: 5s
       retries: 10
+    volumes:
+      - redisdata:/data 
 
   worker:
     container_name: celery-worker
@@ -85,3 +87,4 @@ services:
 
 volumes:
   pgdata:
+  redisdata:
