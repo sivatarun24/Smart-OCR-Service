@@ -61,11 +61,15 @@ def register():
     email = data.get('email')
     name = data.get('name')
     password = data.get('password')
+    logger.info(f"Registration attempt: username={username}, email={email}")
     if not username or not email or not name or not password:
+        logger.warning("Registration failed: missing fields.")
         return jsonify({'error': 'All fields are required.'}), 400
     if User.query.filter_by(username=username).first():
+        logger.warning(f"Registration failed: username already exists ({username})")
         return jsonify({'error': 'Username already exists.'}), 409
     if User.query.filter_by(email=email).first():
+        logger.warning(f"Registration failed: email already registered ({email})")
         return jsonify({'error': 'Email already registered.'}), 409
     password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
     user = User(
@@ -76,7 +80,7 @@ def register():
         )
     db.session.add(user)
     db.session.commit()
-    # db.session.expunge(user)  # detach from session
+    logger.info(f"Registration successful: username={username}, email={email}, id={user.id}")
     return jsonify(user.to_dict()), 201
 
 
@@ -88,23 +92,25 @@ def login():
     data = request.get_json()
     username = data.get('username')
     password = data.get('password')
-    
+    logger.info(f"Login attempt: username={username}")
     if not username or not password:
+        logger.warning("Login failed: missing username or password.")
         return jsonify({'error': 'Username and password are required.'}), 400
-    
     try:
         user = User.query.filter_by(username=username).first()
     except Exception as e:
+        logger.error(f"Login failed: database error for username={username}: {e}")
         return jsonify({'error': 'Database error', 'details': str(e)}), 500
 
     if not user or not bcrypt.check_password_hash(user.password_hash, password):
+        logger.warning(f"Login failed: invalid credentials for username={username}")
         return jsonify({'error': 'Invalid username or password.'}), 401
 
     login_user(user)
+    logger.info(f"Login successful: username={username}, id={user.id}")
     # Return user info without password_hash
     user_data = user.to_dict()
     user_data.pop('password_hash', None)  # remove sensitive info
-    
     return jsonify({'message': 'Login successful', 'user': user_data}), 200
 
 
