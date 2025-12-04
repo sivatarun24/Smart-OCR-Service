@@ -4,3 +4,5 @@ secrets/
 node_modules/
 server/secrets/
 server/__pycache__
+client/dist/
+client/node_modules/

@@ -15,7 +15,8 @@ export default function LoginForm({ onLogin, onSwitchToRegister }) {
       return;
     }
     try {
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE || 'http://localhost:8080';
+      console.log('API_BASE_URL set to:', API_BASE_URL);
       const res = await axios.post(`${API_BASE_URL}/api/login`, { username, password });
       if (onLogin) onLogin(res.data.user);
     } catch (err) {

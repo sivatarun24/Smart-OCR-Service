@@ -1,6 +1,7 @@
 FROM node:20-alpine as build
 WORKDIR /app
 COPY package.json package-lock.json* vite.config.js /app/
+COPY .env ./
 RUN npm ci --silent
 COPY src /app/src
 COPY index.html /app/

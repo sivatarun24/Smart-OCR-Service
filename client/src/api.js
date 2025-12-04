@@ -1,7 +1,8 @@
 
 import axios from 'axios'
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://34.41.62.135:8080'
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8080'
+console.log('API_BASE set to:', API_BASE)
 
 export async function uploadFile(file) {
   const form = new FormData()
