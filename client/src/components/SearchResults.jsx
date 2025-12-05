@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
+import { getDownloadUrl } from '../api'
 
-export default function SearchResults({ items, onDownload, onClear }) {
+export default function SearchResults({ items, onClear }) {
   const [page, setPage] = useState(1)
   const pageSize = 5
   const totalPages = Math.ceil((items?.length || 0) / pageSize)
@@ -8,6 +9,15 @@ export default function SearchResults({ items, onDownload, onClear }) {
 
   if (!items || items.length === 0) {
     return <div className="card"><p className="empty">No results yet.</p></div>
+  }
+
+  const handleDownload = async (id) => {
+    const url = await getDownloadUrl(id)
+    if (url) {
+      window.open(url, '_blank')
+    } else {
+      alert('Download link not available.')
+    }
   }
 
   return (
@@ -26,7 +36,8 @@ export default function SearchResults({ items, onDownload, onClear }) {
               ))}
             </div>
           </div>
-          <button onClick={() => onDownload(it.id)}>Download</button>
+          {console.log(it)}
+          <button onClick={() => handleDownload(it.job_id)}>Download</button>
         </div>
       ))}
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginTop: 10 }}>

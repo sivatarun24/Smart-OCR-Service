@@ -303,6 +303,7 @@ def search():
         if q in hay:
             results.append({
                 "id": d.id,
+                "job_id": d.job_id,
                 "filename": d.filename,
                 "status": d.status,
                 "tags": json.loads(d.tags_json or "[]"),

@@ -10,6 +10,7 @@ export default function SearchBar({ onSearch }) {
           placeholder="Search by keywords, tags, text…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') onSearch(q) }}
           style={{ flex: 1, padding: 10, borderRadius: 12, border: '1px solid #26306b', background:'#0e142b', color:'#c9d0ff' }}
         />
         <button onClick={() => onSearch(q)}>Search</button>

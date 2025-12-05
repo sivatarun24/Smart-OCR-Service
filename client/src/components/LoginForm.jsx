@@ -2,7 +2,7 @@
 import React, { useState } from 'react'
 import axios from 'axios';
 
-export default function LoginForm({ onLogin, onSwitchToRegister }) {
+export default function LoginForm({ onLogin, onSwitchToRegister, onForgotPassword }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -25,35 +25,41 @@ export default function LoginForm({ onLogin, onSwitchToRegister }) {
   }
 
   return (
-    <div className="card" style={{ maxWidth: 400, margin: '80px auto', padding: 32 }}>
-      <form onSubmit={handleSubmit}>
-        <h2 style={{ textAlign: 'center', marginBottom: 24 }}>Login</h2>
-        {error && <div className="error" style={{ marginBottom: 16 }}>{error}</div>}
-        <div className="row" style={{ marginBottom: 16 }}>
-          <input
-            type="text"
-            placeholder="Username"
-            value={username}
-            onChange={e => setUsername(e.target.value)}
-            autoFocus
-            style={{ flex: 1, padding: 10, borderRadius: 12, border: '1px solid #26306b', background:'#0e142b', color:'#c9d0ff' }}
-          />
-        </div>
-        <div className="row" style={{ marginBottom: 24 }}>
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            style={{ flex: 1, padding: 10, borderRadius: 12, border: '1px solid #26306b', background:'#0e142b', color:'#c9d0ff' }}
-          />
-        </div>
-        <button type="submit" style={{ width: '100%' }}>Login</button>
-        <div style={{ textAlign: 'center', marginTop: 16 }}>
-          <span>Don't have an account? </span>
-          <button type="button" style={{ background: 'none', color: '#4b61ff', textDecoration: 'underline', padding: 0 }} onClick={onSwitchToRegister}>Register</button>
-        </div>
-      </form>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
+      <h1 style={{ marginBottom: 32, fontWeight: 700, fontSize: 32, color: '#26306b', letterSpacing: 1 }}>Smart OCR Service</h1>
+      <div className="card" style={{ maxWidth: 480, margin: '40px auto', padding: '48px 40px', boxSizing: 'border-box' }}>
+        <form onSubmit={handleSubmit}>
+          <h2 style={{ textAlign: 'center', marginBottom: 24 }}>Login</h2>
+          {error && <div className="error" style={{ marginBottom: 16 }}>{error}</div>}
+          <div className="row" style={{ marginBottom: 20 }}>
+            <input
+              type="text"
+              placeholder="Username"
+              value={username}
+              onChange={e => setUsername(e.target.value)}
+              autoFocus
+              style={{ flex: 1, padding: '16px 18px', borderRadius: 14, border: '1.5px solid #26306b', background:'#0e142b', color:'#c9d0ff', fontSize: 18 }}
+            />
+          </div>
+          <div className="row" style={{ marginBottom: 32 }}>
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              style={{ flex: 1, padding: '16px 18px', borderRadius: 14, border: '1.5px solid #26306b', background:'#0e142b', color:'#c9d0ff', fontSize: 18 }}
+            />
+          </div>
+          <button type="submit" style={{ width: '100%', padding: '14px 0', fontSize: 18, marginBottom: 8 }}>Login</button>
+          <div style={{ textAlign: 'center', marginTop: 16 }}>
+            <button type="button" style={{ background: 'none', color: '#4b61ff', textDecoration: 'underline', padding: 0, fontSize: 15 }} onClick={onForgotPassword}>Forgot Password?</button>
+          </div>
+          <div style={{ textAlign: 'center', marginTop: 16 }}>
+            <span>Don't have an account? </span>
+            <button type="button" style={{ background: 'none', color: '#4b61ff', textDecoration: 'underline', padding: 0 }} onClick={onSwitchToRegister}>Register</button>
+          </div>
+        </form>
+      </div>
     </div>
   )
 }
